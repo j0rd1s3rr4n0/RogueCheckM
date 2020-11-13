@@ -1,5 +1,5 @@
 Scare for people who like leeching
 ```
-pip install -r requeriments.txt
+pip install -r requirements.txt
 python start.py
 ```
