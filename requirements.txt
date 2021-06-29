@@ -60,7 +60,7 @@ terminaltables==3.1.0
 tornado==6.0.4
 tqdm==4.50.2
 tzlocal==2.1
-urllib3==1.25.10
+urllib3==1.26.5
 virtualenv==20.0.31
 webdriverdownloader==1.1.0.3
 Werkzeug==1.0.1
