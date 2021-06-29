@@ -41,7 +41,7 @@ protobuf==3.13.0
 pycparser==2.20
 pycryptodome==3.9.6
 PyGithub==1.53
-Pygments==2.7.2
+Pygments==2.7.4
 PyInstaller==3.6
 PyJWT==1.7.1
 pynput==1.6.6
