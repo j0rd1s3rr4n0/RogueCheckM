@@ -27,7 +27,7 @@ howdoi==2.0.7
 idna==2.8
 instapy==0.6.11
 itsdangerous==1.1.0
-Jinja2==2.11.2
+Jinja2==2.11.3
 jsonschema==2.6.0
 keep==2.10
 lxml==4.6.1
