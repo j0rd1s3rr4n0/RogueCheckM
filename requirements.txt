@@ -30,7 +30,7 @@ itsdangerous==1.1.0
 Jinja2==2.11.2
 jsonschema==2.6.0
 keep==2.10
-lxml==4.6.1
+lxml==4.6.3
 MarkupSafe==1.1.1
 MeaningCloud-python==2.0.0
 mkvtomp4==2.0
