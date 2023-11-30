@@ -69,7 +69,6 @@ python main.py -u http://custom_domain_url.com
 The execution flow remains the same as described in the previous guide. The script now dynamically updates the `DOMAIN_URL` based on the command-line arguments provided.
 
 ## Example
-
 ### Input
 
 Suppose you want to check username and password combinations for a custom domain "http://example.com". Run the script with the following command:
@@ -79,13 +78,13 @@ python main.py --url http://example.com
 ```
 
 ### Output
-
-Review the generated 'results.txt' file for HTTP request results. The file will contain responses for each combination tested.
-
-```text
-Example Output 1
-Example Output 2
-...
+```java
+Searching and Checking proxys: 3988 proxys [03:00, 22.13 proxys/s]
+Found 1517 working proxys.
+Searching Usernames and Passwords: 100%|██████████████████████████████████| 1517/1517 [00:10<00:00,  2.56 combos_proxy/s]
+Checking Valid Formats: 100%|██████████████████████████████████| 1517/1517 [00:18<00:00,  1.47it/s]
+Generated 1517 usernames and passwords.
+Sending HTTP Requests: 100%|██████████████████████████████████| 100/100 [05:04<00:00,  3.05s/combo_proxy]
 ```
 
 ## Notes

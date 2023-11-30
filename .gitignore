@@ -1,4 +1,8 @@
 .env
 *.db
-dicts/*
+dicts/*.txt
+dicts/*.log
+dicts/*.ini
+dicts/*.json
+dicts/*.xml
 results.txt
