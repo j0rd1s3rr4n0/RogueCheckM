@@ -1,6 +1,5 @@
-# Username and Password Combination Checker
+# PROJEKT **#0917**
 Scare for people who like leeching
-
 This Python script is designed for generating and checking various combinations of usernames and passwords through HTTP requests. It utilizes multiple proxies for enhanced anonymity and parallel processing for efficient execution. The script can be configured to work with a custom domain URL through command-line arguments.
 
 ## Prerequisites
