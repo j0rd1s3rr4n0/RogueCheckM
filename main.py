@@ -10,11 +10,12 @@ import sys
 conn = "CONECTION SQLITE"
 
 # Constantes
-DATABASE_PATH = 'data.db'  # Ruta de la base de datos SQLite
+DATABASE_PATH = 'data.db'  # Path to the SQLite database
 USER_API_URL = 'https://api.generadordni.es/person/username?results=100'
 PASS_API_URL = 'https://api.generadordni.es/person/password?results=100'
-MAX_RETRIES = 3  # Número máximo de intentos para obtener contraseñas con un proxy
-REQUEST_TIMEOUT = 5  # Tiempo máximo de espera para las solicitudes en segundos
+DOMAIN_URL = 'https://localhost/'  # Default domain URL
+MAX_RETRIES = 3  # Maximum retry attempts for obtaining passwords with a proxy
+REQUEST_TIMEOUT = 5  # Maximum request timeout in seconds
 REQUEST_TIMEOUT_CHECK_PROXY = 1
 
 def signal_handler(sig, frame):
@@ -97,7 +98,7 @@ def request_web(url, proxys):
 
 def request_web_combos(combos, proxys):
     """Envía solicitudes HTTP para combos de usernames y passwords."""
-    domain = "95c7-81-60-169-15.ngrok-free.app"
+    domain = DOMAIN_URL
     try:
         results = []
         for combo in tqdm(combos, desc="Sending HTTP Requests", unit="combo_proxy"):
@@ -187,6 +188,12 @@ def generate_combos(conn):
         print(f"Error al generar combos: {e}")
 
 def main():
+    
+    if "--url" in sys.argv or "-u" in sys.argv:
+        index = sys.argv.index("--url") if "--url" in sys.argv else sys.argv.index("-u")
+        global DOMAIN_URL
+        DOMAIN_URL = sys.argv[index + 1]
+    
     signal.signal(signal.SIGINT, signal_handler)
     try:
         global conn
