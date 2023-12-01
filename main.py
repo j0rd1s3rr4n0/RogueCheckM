@@ -27,18 +27,12 @@ def create_tables(conn):
     try:
         try:
             cursor = conn.cursor()
-            cursor.execute('''CREATE TABLE IF NOT EXISTS proxys
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, port INT)''')
-            cursor.execute('''CREATE TABLE IF NOT EXISTS Usernames
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT)''')
-            cursor.execute('''CREATE TABLE IF NOT EXISTS Passwords
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, password TEXT)''')
-            cursor.execute('''CREATE TABLE IF NOT EXISTS Emails
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT)''')
-            cursor.execute('''CREATE TABLE IF NOT EXISTS Pastebins
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, code TEXT)''')
-            cursor.execute('''CREATE TABLE IF NOT EXISTS Combos
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS proxys (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, port INT)''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS Usernames (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT)''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS Passwords (id INTEGER PRIMARY KEY AUTOINCREMENT, password TEXT)''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS Emails (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT)''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS Pastebins (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, code TEXT)''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS Combos (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)''')
             conn.commit()
             cursor.close()
         except Exception as e:
