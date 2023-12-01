@@ -32,7 +32,7 @@ REQUEST_TIMEOUT_CHECK_PROXY = 1
 
 The script now checks for the presence of a command-line argument specifying a custom domain URL. If present, it updates the `DOMAIN_URL` variable accordingly.
 
-```python
+```java
 # Example command-line usage:
 # python main.py --url http://custom_domain_url.com
 # or
@@ -47,19 +47,19 @@ if "--url" in sys.argv or "-u" in sys.argv:
 
 Run the script by executing the following command in your terminal:
 
-```bash
+```java
 python main.py
 ```
 
 For specifying a custom domain URL:
 
-```bash
+```java
 python main.py --url http://custom_domain_url.com
 ```
 
 or
 
-```bash
+```java
 python main.py -u http://custom_domain_url.com
 ```
 
