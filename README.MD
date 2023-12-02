@@ -81,7 +81,7 @@ python main.py --url http://example.com
 Searching and Checking proxys: 3988 proxys [03:00, 22.13 proxys/s]
 Found 1517 working proxys.
 Searching Usernames and Passwords: 100%|██████████████████████████████████| 1517/1517 [00:10<00:00,  2.56 combos_proxy/s]
-Checking Valid Formats: 100%|██████████████████████████████████| 1517/1517 [00:18<00:00,  1.47it/s]
+Checking Valid Formats: 100%|██████████████████████████████████| 1517/1517 [02:18<00:00,  1.47it/s]
 Generated 1517 usernames and passwords.
 Sending HTTP Requests: 100%|██████████████████████████████████| 100/100 [05:04<00:00,  3.05s/combo_proxy]
 ```
