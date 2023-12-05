@@ -139,10 +139,10 @@ def generate_combos(conn):
         print(f"Error al generar combos: {e}")
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Tu descripción del script")
+    parser = argparse.ArgumentParser(description="RogueCheckM - Herramienta de verificación de cuentas con generación de combos y proxies")
 
-    parser.add_argument("--url", "-u", dest="new_url", metavar="NEW_URL", type=str, help="Establecer una nueva URL")
-    parser.add_argument("--site", "-s", dest="service", metavar="SERVICE", type=str, help="Establecer el servicio objetivo")
+    parser.add_argument("--url", "-u", dest="new_url", metavar="NEW_URL", type=str, help="Establece una nueva URL de destino para las solicitudes HTTP")
+    parser.add_argument("--site", "-s", dest="service", metavar="SERVICE", type=str, help="Establece el servicio objetivo para las solicitudes HTTP")
 
     return parser.parse_args()
 
@@ -231,7 +231,7 @@ def main():
     #     DOMAIN_URL = sys.argv[index + 1]
 
     signal.signal(signal.SIGINT, signal_handler)
-    
+    args = parse_arguments()
     try:
         global config, conn, DATABASE_PATH, USER_API_URL, PASS_API_URL
         config = load_config()
@@ -267,7 +267,6 @@ def main():
             print(f'Obtained {combos_len} usernames and passwords.')
 
             # Selector de Domain URL
-            args = parse_arguments()
             global DOMAIN_URL,SERVICE_NAME
             if args.new_url:
                 DOMAIN_URL = args.new_url
@@ -296,6 +295,7 @@ def main():
 
     except Exception as e:
          print(f"Error inesperado: {e}")
+        
 
 if __name__ == "__main__":
     main()
