@@ -91,3 +91,9 @@ Sending HTTP Requests: 100%|█████████████████�
 - Adjust the number of generated combos, API URLs, and other parameters based on your specific requirements.
 - Ensure you have an active internet connection for proxy validation and API requests.
 - Customize error handling and logging as needed for your use case.
+
+
+## Testing
+```java
+  python -m unittest discover
+```
