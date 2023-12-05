@@ -4,6 +4,7 @@ import sqlite3
 from urllib.parse import urlparse
 import inquirer
 from inquirer.errors import ValidationError
+from concurrent.futures import ThreadPoolExecutor
 
 # Configuración de la base de datos y la URL de configuración
 DATABASE_FILE = 'proxies.db'
@@ -129,9 +130,22 @@ def get_valid_url():
     answer = inquirer.prompt(questions)
     return answer["url"]
 
+def test_proxy(proxy):
+    try:
+        response = requests.get("https://www.google.com", proxies={"http": proxy, "https": proxy}, timeout=2)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
+
 def get_proxies():
     global config
-    return config  # Utiliza config directamente ya que es una lista de proxies
+    available_proxies = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(test_proxy, f"http://{proxy}") for proxy in config]
+        for future, proxy in zip(futures, config):
+            if future.result():
+                available_proxies.append(proxy)
+    return available_proxies
 
 # Función de menú interactivo para realizar solicitud con URL verificada
 def make_request_menu():
@@ -146,7 +160,8 @@ def make_request_menu():
         for proxy in proxies:
             proxy_url = f"http://{proxy}"
             try:
-                response = requests.get(url, params=payload, proxies={"http": proxy_url, "https": proxy_url}, timeout=2)
+                proxy_path.append(proxy_url)  # Agrega el proxy actual al camino
+                response = requests.get(url, params=payload, proxies={"http": proxy_url, "https": proxy_url}, timeout=5)
                 print(f"Proxy: {proxy_url}, Estado: {response.status_code}")
                 print("Contenido de la respuesta:")
                 print(response.text)
@@ -156,7 +171,7 @@ def make_request_menu():
                 pass
             finally:
                 proxy_path.append(proxy_url)  # Agrega el proxy actual al camino
-        print(f"Recorrido de la solicitud: {' -> '.join(proxy_path)}\n")  # Imprime el recorrido del proxy
+                print(f"Recorrido de la solicitud: {' -> '.join(proxy_path)}\n")  # Imprime el recorrido del proxy
 
     # Restaura el camino de proxies a la configuración original
     proxy_path = config.copy()
