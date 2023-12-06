@@ -1,6 +1,6 @@
-# PROJEKT **#0917**
-Scare for people who like leeching
-This Python script is designed for generating and checking various combinations of usernames and passwords through HTTP requests. It utilizes multiple proxies for enhanced anonymity and parallel processing for efficient execution. The script can be configured to work with a custom domain URL through command-line arguments.
+# RogueCheckM
+
+RogueCheckM is a Python script designed for generating and checking various combinations of usernames and passwords through HTTP requests. It utilizes multiple proxies for enhanced anonymity and parallel processing for efficient execution. The script can be configured to work with a custom domain URL through command-line arguments.
 
 ## Prerequisites
 
@@ -13,26 +13,35 @@ Ensure that you have the following prerequisites installed:
   - tqdm
   - sqlite3
   - httpx
+  - colorama
+
+You can find a list of all required dependencies in the requirements.txt file.
+```bash
+pip install -r requirements.txt
+```
 
 ## Configuration
 
 ### Script Constants
 Customize the script constants according to your preferences.
 ```python
-DATABASE_PATH = 'data.db'  # Path to the SQLite database
-USER_API_URL = 'https://api.generadordni.es/person/username?results=100'
-PASS_API_URL = 'https://api.generadordni.es/person/password?results=100'
-DOMAIN_URL = 'https://localhost/'  # Default domain URL
 MAX_RETRIES = 3  # Maximum retry attempts for obtaining passwords with a proxy
-REQUEST_TIMEOUT = 5  # Maximum request timeout in seconds
-REQUEST_TIMEOUT_CHECK_PROXY = 1
+REQUEST_TIMEOUT = 1  # Maximum request timeout in seconds
+REQUEST_TIMEOUT_CHECK_PROXY = 2
+DATABASE_PATH = None  # Path to the SQLite database
+NEW_URL = False
+DOMAIN_URL = None  # Default domain URL
+SERVICE_NAME = None
+USER_API_URL = None
+PASS_API_URL = None
+MAX_WORKERS = None
 ```
 
 ### Command-Line Argument for Custom Domain URL
 
 The script now checks for the presence of a command-line argument specifying a custom domain URL. If present, it updates the `DOMAIN_URL` variable accordingly.
 
-```java
+```python
 # Example command-line usage:
 # python main.py --url http://custom_domain_url.com
 # or
@@ -47,19 +56,19 @@ if "--url" in sys.argv or "-u" in sys.argv:
 
 Run the script by executing the following command in your terminal:
 
-```java
+```bash
 python main.py
 ```
 
 For specifying a custom domain URL:
 
-```java
+```bash
 python main.py --url http://custom_domain_url.com
 ```
 
 or
 
-```java
+```bash
 python main.py -u http://custom_domain_url.com
 ```
 
@@ -77,13 +86,13 @@ python main.py --url http://example.com
 ```
 
 ### Output
-```java
-Searching and Checking proxys: 3988 proxys [03:00, 22.13 proxys/s]
-Found 1517 working proxys.
+```bash
+Searching and Checking proxies...: 3988 proxies [03:00, 22.13 proxies/s]
+Found 1517 working proxies.
 Searching Usernames and Passwords: 100%|██████████████████████████████████| 1517/1517 [00:10<00:00,  2.56 combos_proxy/s]
 Checking Valid Formats: 100%|██████████████████████████████████| 1517/1517 [02:18<00:00,  1.47it/s]
 Generated 1517 usernames and passwords.
-Sending HTTP Requests: 100%|██████████████████████████████████| 100/100 [05:04<00:00,  3.05s/combo_proxy]
+Sending HTTP Requests to http://example.com: 100%|██████████████████████████████████| 100/100 [05:04<00:00,  3.05s/combo_proxy]
 ```
 
 ## Notes
@@ -92,8 +101,7 @@ Sending HTTP Requests: 100%|█████████████████�
 - Ensure you have an active internet connection for proxy validation and API requests.
 - Customize error handling and logging as needed for your use case.
 
-
 ## Testing
-```java
-  python -m unittest discover
+```bash
+python -m unittest discover
 ```
