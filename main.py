@@ -1,21 +1,20 @@
-import argparse
-import random
-import inquirer
-import requests
-from concurrent.futures import ProcessPoolExecutor
-from tqdm import tqdm
-import sqlite3
-import httpx
-import signal
-import sys
 import os
+import sys
 import time
 import json
+import signal
+import random
+import sqlite3
+import argparse
+import inquirer
+import requests
+from tqdm import tqdm
 from colorama import Fore, Style
+from concurrent.futures import ProcessPoolExecutor
 
 # Constantes
 MAX_RETRIES = 3
-REQUEST_TIMEOUT = 1
+REQUEST_TIMEOUT = 2
 REQUEST_TIMEOUT_CHECK_PROXY = 2
 DATABASE_PATH = None
 NEW_URL = False
@@ -208,7 +207,7 @@ def send_http_requests(conn, combos_len, domain_url, service_name):
             combos = [(record[0], record[1]) for record in conn.execute("SELECT username, password FROM Combos").fetchall()]
             working_proxies_list = working_proxies()
 
-            results = list(executor.map(request_web_combos, [(combos[i:i + 100], working_proxies_list, domain_url, service_name) for i in range(0, len(combos), 100)]))
+            results = list(executor.map(request_web_combos, [(combos[i:i + 100], working_proxies_list, domain_url, service_name) for i in range(0, combos_len, 100)]))
 
         with open('results.txt', 'w') as results_file:
             for result_set in results:
