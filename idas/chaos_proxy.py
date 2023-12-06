@@ -5,16 +5,21 @@ from urllib.parse import urlparse
 import inquirer
 from inquirer.errors import ValidationError
 from concurrent.futures import ThreadPoolExecutor
+from fake_useragent import UserAgent
+import multiprocessing
 
 # Configuración de la base de datos y la URL de configuración
 DATABASE_FILE = 'proxies.db'
 CONFIG_URL = "https://j0rd1s3rr4n0.github.io/api/RogueCheckM/config.json"
 
-# Inicializar la variable config
-config = None
+# Lista global de proxies verificados
+verified_proxies = []
 
-# Variable para rastrear el camino de los proxies
-proxy_path = []
+# Función para obtener el número máximo de max_workers basado en los procesadores disponibles
+def get_max_workers():
+    num_processors = multiprocessing.cpu_count()
+    percentage_of_processors = 0.75  # Puedes ajustar este valor según tus necesidades
+    return int(num_processors * percentage_of_processors)
 
 # Función para crear la base de datos
 def create_database():
@@ -59,40 +64,49 @@ def fetch_proxies_from_config():
         config_data = json.loads(response.text)
         proxy_sources = config_data.get("proxy_sources", [])
         proxies = []
-        for source in proxy_sources:
+
+        def fetch_proxy(source):
             try:
                 response = requests.get(source)
-                proxies.extend(response.text.strip().split('\r\n'))
+                return response.text.strip().split('\r\n')
             except requests.RequestException as e:
                 print(f"No se pudo obtener proxies de {source}. Error: {e}")
+                return []
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(fetch_proxy, source) for source in proxy_sources]
+            for future in futures:
+                proxies.extend(future.result())
 
         return proxies
     except requests.RequestException as e:
         print(f"No se pudo obtener la configuración. Error: {e}")
         return []
 
+# Función para verificar si un proxy es funcional
+def test_proxy(proxy):
+    try:
+        response = requests.get("https://www.google.com", proxies={"http": proxy, "https": proxy}, timeout=2)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
+
+# Función para actualizar proxies verificados
+def update_verified_proxies():
+    global verified_proxies
+    proxies_to_verify = fetch_proxies_from_config()
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        verified_proxies = [proxy for proxy in proxies_to_verify if executor.submit(test_proxy, f"http://{proxy}").result()]
+
 # Función para actualizar proxies desde la configuración
 def update_proxies_from_config_main():
-    global config, proxy_path
-    proxies = fetch_proxies_from_config()
-    if proxies:
-        config = proxies
-        for proxy in proxies:
-            # Manejar proxies con formato incorrecto
-            try:
-                ip, port = proxy.split(':')
-                add_proxy(ip, int(port))
-            except ValueError:
-                pass
-        proxy_path = config.copy()  # Inicializa el camino de proxies con la configuración actual
-        print(f"Proxies actualizados desde la configuración.")
-    else:
-        print("No se pudo actualizar los proxies desde la configuración.")
+    create_database()
+    update_verified_proxies()
+    print(f"Proxies actualizados desde la configuración.")
 
 # Función de menú interactivo con inquirer
 def interactive_menu_inquirer():
-    global proxy_path
-    # Llamar a la función para actualizar proxies desde la configuración
     update_proxies_from_config_main()
 
     questions = [
@@ -107,15 +121,16 @@ def interactive_menu_inquirer():
         )
     ]
 
+    max_workers = get_max_workers()
+
     while True:
         answers = inquirer.prompt(questions)
 
-        # Obtener la función correspondiente a la opción seleccionada
         selected_option = answers["choice"]
         if selected_option == "exit_program":
             exit()
         elif selected_option == "make_request":
-            make_request_menu()
+            make_request_menu(max_workers)
 
 # Función para ingresar la URL con verificación
 def get_valid_url():
@@ -130,62 +145,62 @@ def get_valid_url():
     answer = inquirer.prompt(questions)
     return answer["url"]
 
-def test_proxy(proxy):
+# Función para obtener proxies válidos
+def get_proxies():
+    global verified_proxies
+    return verified_proxies
+
+# Función para realizar una solicitud a través de una cadena de proxies
+def make_request(url, proxies_chain, user_agent):
+    payload = {}
+    headers = {'User-Agent': user_agent}
+
     try:
-        response = requests.get("https://www.google.com", proxies={"http": proxy, "https": proxy}, timeout=2)
-        return response.status_code == 200
-    except requests.RequestException:
+        for i, proxy_url in enumerate(proxies_chain):
+            proxies = {"http": proxy_url, "https": proxy_url}
+            response = requests.get(url, params=payload, proxies=proxies, headers=headers, timeout=5)
+            
+            print(f"\033[94m[*]\033[0m Realizando Solicitud a {url}")
+            print(f"\033[92m[!]\033[0m Camino usado {' -> '.join(proxies_chain[:i+1])} --> {url}")
+            print(f"\033[91m[!]\033[0m Proxy {i + 1}: {proxy_url}, Estado: {response.status_code}")
+
+            if response.status_code != 200:
+                print(f"\033[91m[!]\033[0m Solicitud fallida en este proxy. Deteniendo la cadena.")
+                break
+
+        print("\033[92m[!]\033[0m Contenido de la respuesta:")
+        print(response.text)
+        print("\033[92m[!]\033[0m Solicitud completada.")
+        return True
+    except requests.RequestException as e:
         return False
 
-def get_proxies():
-    global config
-    available_proxies = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(test_proxy, f"http://{proxy}") for proxy in config]
-        for future, proxy in zip(futures, config):
-            if future.result():
-                available_proxies.append(proxy)
-    return available_proxies
-
 # Función de menú interactivo para realizar solicitud con URL verificada
-def make_request_menu():
-    global proxy_path
+def make_request_menu(max_workers):
     url = get_valid_url()
-    payload = {}
+    user_agent = UserAgent().random
 
-    # Obtener la lista de proxies
     proxies = get_proxies()
-    if len(proxies) != 0:
-        # Utilizar los proxies en cadena
-        for proxy in proxies:
-            proxy_url = f"http://{proxy}"
-            try:
-                proxy_path.append(proxy_url)  # Agrega el proxy actual al camino
-                response = requests.get(url, params=payload, proxies={"http": proxy_url, "https": proxy_url}, timeout=5)
-                print(f"Proxy: {proxy_url}, Estado: {response.status_code}")
-                print("Contenido de la respuesta:")
-                print(response.text)
-                print("Solicitud completada.")
-            except requests.RequestException as e:
-                #print(f"Proxy: {proxy_url}, Error: {e}")
-                pass
-            finally:
-                proxy_path.append(proxy_url)  # Agrega el proxy actual al camino
-                print(f"Recorrido de la solicitud: {' -> '.join(proxy_path)}\n")  # Imprime el recorrido del proxy
+    if len(proxies) >= 2:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for i in range(len(proxies) - 1):
+                first_proxy = proxies[i]
+                second_proxy = proxies[i + 1]
+                proxies_chain = [f"http://{first_proxy}", f"http://{second_proxy}"]
 
-    # Restaura el camino de proxies a la configuración original
-    proxy_path = config.copy()
+                try:
+                    make_request(url, proxies_chain, user_agent)
+                except requests.RequestException as e:
+                    pass
 
 # Función para manejar la excepción de Ctrl+C
 def handle_ctrl_c(signum, frame):
-    print("\nSaliendo del programa de manera esperada.")
+    print("\n\033[93m[!]\033[0m Saliendo del programa de manera esperada.")
     exit()
 
 # Bucle principal
 if __name__ == "__main__":
-    # Configurar el manejador de la señal para Ctrl+C
     import signal
     signal.signal(signal.SIGINT, handle_ctrl_c)
 
-    create_database()
     interactive_menu_inquirer()
