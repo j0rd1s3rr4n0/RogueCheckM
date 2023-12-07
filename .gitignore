@@ -6,3 +6,6 @@ dicts/*.ini
 dicts/*.json
 dicts/*.xml
 results.txt
+http.txt
+http_proxies.txt
+*.pyc

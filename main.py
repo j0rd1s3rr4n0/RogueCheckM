@@ -9,13 +9,14 @@ import argparse
 import inquirer
 import requests
 from tqdm import tqdm
+import JkProxyGetter as PXY
 from colorama import Fore, Style
 from concurrent.futures import ProcessPoolExecutor
 
 # Constantes
-MAX_RETRIES = 3
-REQUEST_TIMEOUT = 2
-REQUEST_TIMEOUT_CHECK_PROXY = 2
+MAX_RETRIES = 1
+REQUEST_TIMEOUT = 1
+REQUEST_TIMEOUT_CHECK_PROXY = 1
 DATABASE_PATH = None
 NEW_URL = False
 DOMAIN_URL = None
@@ -39,13 +40,16 @@ def load_config():
         sys.exit(1)
 
 def print_error(message):
-    print(f"{Fore.RED}[ERROR] {message}{Style.RESET_ALL}")
+    print(f"{Fore.RED}[✕] {message}{Style.RESET_ALL}")
 
 def print_success(message):
-    print(f"{Fore.GREEN}[SUCCESS] {message}{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}[✓] {message}{Style.RESET_ALL}")
 
 def print_warning(message):
-    print(f"{Fore.YELLOW}[WARNING] {message}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}[‼] {message}{Style.RESET_ALL}")
+
+def print_process(message):
+    print(f"{Fore.BLUE}[ↂ]{message}{Style.RESET_ALL}")
 
 def get_max_workers():
     try:
@@ -167,10 +171,22 @@ def parse_arguments():
     parser.add_argument("--url", "-u", dest="new_url", metavar="NEW_URL", type=str, help="Establecer una nueva URL")
     parser.add_argument("--site", "-s", dest="service", metavar="SERVICE", type=str, help="Establecer el servicio objetivo")
     return parser.parse_args()
+def load_http_proxies():
+    try:
+        with open("http.txt", "r") as file:
+            proxies = file.read().splitlines()
+            return proxies
+    except Exception as e:
+        print_error(f"Error al cargar proxies desde http_proxies.txt: {e}")
+        return []
 
 def get_proxies():
     proxy_urls = config["proxy_sources"]
     proxies = []
+
+    # Añadir proxies de http_proxies.txt
+    proxies.extend(load_http_proxies())
+
     try:
         for url in proxy_urls:
             try:
@@ -244,7 +260,11 @@ def main():
     global MAX_WORKERS
     MAX_WORKERS = get_max_workers()
     try:
+        print_process(f'Finding Proxys')
+        PXY.start()
+        print_success(f' Added new Proxys')
         global config, conn, DATABASE_PATH, USER_API_URL, PASS_API_URL
+        print_process("CARGANDO AJUSTES")
         config = load_config()
         
         DATABASE_PATH = config["database"]["DATABASE_PATH"]
@@ -253,7 +273,7 @@ def main():
         
         with sqlite3.connect(DATABASE_PATH) as conn:
             create_tables(conn, config)
-
+            print_process("Calentano Motores... (Preparando Hilos)")
             with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
                 proxies = list(tqdm(executor.map(check_proxy, get_proxies()), total=len(get_proxies()), desc="Searching and Checking proxies", unit=" proxies"))
             
