@@ -94,7 +94,7 @@ def guardar_en_archivo(ip_port):
     # Función para guardar la dirección en un archivo
     archivo_path = "http_proxies.txt"
     with lock:
-        with open(archivo_path, "a") as archivo:
+        with open(archivo_path, "+a") as archivo:
             archivo.write(ip_port + "\n")
         #print(f"La dirección {ip_port} se ha guardado en el archivo {archivo_path}")
 
@@ -175,7 +175,7 @@ def realizar_solicitudes_concurrentes(max_intentos=3):
 
 def eliminar_duplicados(archivo_entrada, archivo_salida):
     try:
-        with open(archivo_entrada, 'r') as entrada, open(archivo_salida, 'a') as salida:
+        with open(archivo_entrada, 'r') as entrada, open(archivo_salida, '+a') as salida:
             lineas = set(entrada.readlines())
             salida.writelines(sorted(lineas))
         print_warning(f"Duplicados eliminados. Resultado guardado en {archivo_salida}")

@@ -7,6 +7,8 @@ import random
 import sqlite3
 import argparse
 import inquirer
+import asyncio
+import aiohttp
 import requests
 from tqdm import tqdm
 import JkProxyGetter as PXY
@@ -14,9 +16,9 @@ from colorama import Fore, Style
 from concurrent.futures import ProcessPoolExecutor
 
 # Constantes
-MAX_RETRIES = 1
+MAX_RETRIES = 2
 REQUEST_TIMEOUT = 1
-REQUEST_TIMEOUT_CHECK_PROXY = 1
+REQUEST_TIMEOUT_CHECK_PROXY = 5
 DATABASE_PATH = None
 NEW_URL = False
 DOMAIN_URL = None
@@ -24,6 +26,50 @@ SERVICE_NAME = None
 USER_API_URL = None
 PASS_API_URL = None
 MAX_WORKERS = None
+THREADS = 20
+
+def get_max_workers():
+    try:
+        cpu_cores = os.cpu_count()
+        max_workers = min(cpu_cores * 2, THREADS)
+        print_warning(f"Using {max_workers} threads!")
+        return max_workers
+    
+    except Exception as e:
+        print_error(f"Error al obtener el número de núcleos de la CPU: {e}")
+        return None
+def create_tables(conn, config):
+    try:
+        cursor = conn.cursor()
+
+        for table_name, columns in config["database"]["tables"].items():
+            columns_definition = ', '.join(columns)
+            cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_definition})")
+
+        conn.commit()
+        cursor.close()
+        print_success("Tablas creadas correctamente.")
+    except Exception as e:
+        print_error(f"Error al crear las tablas en la base de datos: {e}")
+        sys.exit(1)
+def check_proxy(proxy):
+    try:
+        response = requests.get('https://www.google.com', proxies={'http': proxy, 'https': proxy}, timeout=REQUEST_TIMEOUT_CHECK_PROXY)
+        if response.status_code == 200:
+            insert_proxy(conn=conn, proxy=proxy)
+            return proxy
+    except Exception as e:
+        pass
+def insert_proxy(conn, proxy):
+    try:
+        cursor = conn.cursor()
+        ip, port = proxy.split(':') if ':' in proxy else (proxy, None)
+        cursor.execute("INSERT INTO proxys (ip, port) VALUES (?, ?)", (ip, port))
+        conn.commit()
+        cursor.close()
+        print_success(f"Proxy insertado en la base de datos: {proxy}")
+    except Exception as e:
+        pass
 
 def signal_handler(sig, frame):
     time.sleep(2)
@@ -51,40 +97,41 @@ def print_warning(message):
 def print_process(message):
     print(f"{Fore.BLUE}[ↂ]{message}{Style.RESET_ALL}")
 
-def get_max_workers():
+
+async def async_check_proxy(session, proxy):
     try:
-        cpu_cores = os.cpu_count()
-        max_workers = min(cpu_cores * 2, 10)
-        return max_workers
-    
-    except Exception as e:
-        print_error(f"Error al obtener el número de núcleos de la CPU: {e}")
-        return None
-
-def create_tables(conn, config):
-    try:
-        cursor = conn.cursor()
-
-        for table_name, columns in config["database"]["tables"].items():
-            columns_definition = ', '.join(columns)
-            cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_definition})")
-
-        conn.commit()
-        cursor.close()
-        print_success("Tablas creadas correctamente.")
-    except Exception as e:
-        print_error(f"Error al crear las tablas en la base de datos: {e}")
-        sys.exit(1)
-
-def check_proxy(proxy):
-    try:
-        response = requests.get('https://www.google.com', proxies={'http': proxy, 'https': proxy}, timeout=REQUEST_TIMEOUT_CHECK_PROXY)
-        if response.status_code == 200:
-            insert_proxy(conn=conn, proxy=proxy)
-            return proxy
+        async with session.get('https://www.google.com', proxies={'http': proxy, 'https': proxy}, timeout=REQUEST_TIMEOUT_CHECK_PROXY) as response:
+            if response.status == 200:
+                insert_proxy(conn=conn, proxy=proxy)
+                return proxy
     except Exception as e:
         pass
 
+async def async_get_proxies(session, url):
+    try:
+        async with session.get(url, timeout=REQUEST_TIMEOUT) as response:
+            return await response.text()
+    except Exception as e:
+        pass
+
+async def async_working_proxies():
+    try:
+        print(f"{Fore.CYAN}Searching and Checking proxies...{Style.RESET_ALL}")
+        async with aiohttp.ClientSession() as session:
+            tasks = [async_check_proxy(session, proxy) for proxy in await async_get_proxies(session, config["proxy_sources"])]
+            results = await asyncio.gather(*tasks)
+        
+        working_proxies_list = [proxy for proxy in results if proxy is not None]
+        print_success(f'Encontrados {len(working_proxies_list)} proxies funcionando.')
+
+        if not working_proxies_list:
+            print_warning("CANCELADA LA VERIFICACIÓN DE CUENTAS POR FALTA DE PROXIES")
+            sys.exit(0)
+
+        return working_proxies_list
+    except Exception as e:
+        print_error(f"An error occurred in 'working_proxies': {e}")
+        return []
 def insert_proxy(conn, proxy):
     try:
         cursor = conn.cursor()
@@ -95,7 +142,6 @@ def insert_proxy(conn, proxy):
         print_success(f"Proxy insertado en la base de datos: {proxy}")
     except Exception as e:
         pass
-
 def insert_usernames(conn, usernames):
     try:
         cursor = conn.cursor()
@@ -144,7 +190,6 @@ def get_passwords(proxy):
     except KeyboardInterrupt:
         time.sleep(2)
         print(f"{Fore.YELLOW}Ctrl+C presionado. Cancelando la ejecución...{Style.RESET_ALL}")
-
 def generate_combos(conn):
     try:
         cursor = conn.cursor()
@@ -170,14 +215,16 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Tu descripción del script")
     parser.add_argument("--url", "-u", dest="new_url", metavar="NEW_URL", type=str, help="Establecer una nueva URL")
     parser.add_argument("--site", "-s", dest="service", metavar="SERVICE", type=str, help="Establecer el servicio objetivo")
+    parser.add_argument("--threads", "-t", dest="THREADS", metavar="THREADS", type=int, help="Establecer numero de hilos")
     return parser.parse_args()
+
 def load_http_proxies():
     try:
         with open("http.txt", "r") as file:
             proxies = file.read().splitlines()
             return proxies
     except Exception as e:
-        print_error(f"Error al cargar proxies desde http_proxies.txt: {e}")
+        print_error(f"Error al cargar proxies desde http.txt: {e}")
         return []
 
 def get_proxies():
@@ -198,7 +245,6 @@ def get_proxies():
         time.sleep(2)
         print(f"{Fore.YELLOW}Ctrl+C presionado. Cancelando la ejecución...{Style.RESET_ALL}")
     return proxies
-
 def working_proxies():
     try:
         print(f"{Fore.CYAN}Searching and Checking proxies...{Style.RESET_ALL}")
@@ -216,7 +262,6 @@ def working_proxies():
     except Exception as e:
         print_error(f"An error occurred in 'working_proxies': {e}")
         return []
-
 def send_http_requests(conn, combos_len, domain_url, service_name):
     try:
         with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -257,10 +302,12 @@ def request_web_combos(args):
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     args = parse_arguments()
+    global THREADS
+    if args.THREADS:
+        THREADS = args.THREADS
     global MAX_WORKERS
     MAX_WORKERS = get_max_workers()
     try:
-        print_process(f'Finding Proxys')
         PXY.start()
         print_success(f' Added new Proxys')
         global config, conn, DATABASE_PATH, USER_API_URL, PASS_API_URL
